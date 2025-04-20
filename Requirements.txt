@@ -1,5 +1,8 @@
 streamlit
-tensorflow==2.12.0
-opencv-python
+tensorflow
 numpy
-Pillow
+pillow
+matplotlib
+opencv-python
+seaborn
+scikit-learn
