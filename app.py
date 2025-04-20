@@ -2,14 +2,23 @@ import streamlit as st
 import tensorflow as tf
 import numpy as np
 from PIL import Image
+import os
+import gdown
 
 # MUST be the first Streamlit command
 st.set_page_config(page_title="Brain Tumor Classifier", page_icon="🧠", layout="centered")
 
-# Load model once
+# Load model once and download from Google Drive if not available
 @st.cache_resource
 def load_model():
-    return tf.keras.models.load_model('brain_tumor_model.h5')
+    model_path = 'brain_tumor_model.h5'
+    
+    if not os.path.exists(model_path):
+        with st.spinner("📥 Downloading brain tumor detection model..."):
+            url = 'https://drive.google.com/uc?id=1IVSNk-_apRYtiS32Lh-ZHBB7JvwmWUun'
+            gdown.download(url, model_path, quiet=False)
+
+    return tf.keras.models.load_model(model_path)
 
 model = load_model()
 classes = ['No Tumor', 'Pituitary Tumor']
@@ -104,7 +113,7 @@ if uploaded_file is not None:
 with st.expander("🕓 View Prediction History"):
     if st.session_state.history:
         for i, entry in enumerate(reversed(st.session_state.history), 1):
-            st.markdown(f"{i}.** {entry['image']} — Prediction: *{entry['prediction']}*, Confidence: {entry['confidence']}")
+            st.markdown(f"{i}. **{entry['image']}** — Prediction: *{entry['prediction']}*, Confidence: {entry['confidence']}")
     else:
         st.write("No history yet.")
 
