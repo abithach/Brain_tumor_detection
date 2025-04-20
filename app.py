@@ -1,45 +1,36 @@
 import streamlit as st
+import tensorflow as tf
 import numpy as np
 from PIL import Image
 import os
 import gdown
-import tensorflow.lite as tflite  # used inside interpreter
 
 # MUST be the first Streamlit command
 st.set_page_config(page_title="Brain Tumor Classifier", page_icon="🧠", layout="centered")
 
-# ==========================
-# Load and cache TFLite model
-# ==========================
+# Load model once and download from Google Drive if not available
 @st.cache_resource
-def load_tflite_model():
-    model_path = "brain_tumor_model.tflite"
-
-    # Download model if not available
+def load_model():
+    model_path = 'brain_tumor_model.h5'
+    
     if not os.path.exists(model_path):
-        with st.spinner("📥 Downloading TFLite model..."):
-            url = "https://drive.google.com/uc?id=1IVSNk-_apRYtiS32Lh-ZHBB7JvwmWUun"
+        with st.spinner("📥 Downloading brain tumor detection model..."):
+            url = 'https://drive.google.com/uc?id=1IVSNk-_apRYtiS32Lh-ZHBB7JvwmWUun'
             gdown.download(url, model_path, quiet=False)
 
-    # Load TFLite model into interpreter
-    interpreter = tflite.Interpreter(model_path=model_path)
-    interpreter.allocate_tensors()
-    return interpreter
+    return tf.keras.models.load_model(model_path)
 
-interpreter = load_tflite_model()
-input_details = interpreter.get_input_details()
-output_details = interpreter.get_output_details()
-
+model = load_model()
 classes = ['No Tumor', 'Pituitary Tumor']
 
-# ==========================
-# Theme + Sidebar
-# ==========================
+# Initialize history
 if 'history' not in st.session_state:
     st.session_state.history = []
 
+# Sidebar Theme Toggle
 theme_mode = st.sidebar.radio("🌗 Theme", ("Light", "Dark"))
 
+# Apply dark theme (simulated)
 if theme_mode == "Dark":
     st.markdown(
         """
@@ -53,6 +44,7 @@ if theme_mode == "Dark":
         unsafe_allow_html=True
     )
 
+# Sidebar AI Chatbot
 st.sidebar.markdown("### 🤖 AI Assistant")
 user_input = st.sidebar.text_input("Ask me anything")
 
@@ -65,9 +57,7 @@ if user_input:
     else:
         st.sidebar.write("I'm here to help you understand tumor predictions!")
 
-# ==========================
 # Title and Description
-# ==========================
 st.markdown(
     """
     <h1 style='text-align: center; color: #6a0dad;'>🧠 Brain Tumor Classification</h1>
@@ -76,38 +66,31 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# ==========================
-# File Uploader
-# ==========================
+# File uploader
 uploaded_file = st.file_uploader("📤 Upload an MRI image", type=["jpg", "jpeg", "png"])
 
-if uploaded_file:
+if uploaded_file is not None:
     image = Image.open(uploaded_file)
     st.markdown("### 🖼 Uploaded Image")
     st.image(image, use_column_width=True)
 
     # Preprocess image
     image = image.resize((224, 224))
-    img_array = np.array(image).astype(np.float32) / 255.0
+    img_array = np.array(image)
     if img_array.shape[-1] == 4:
         img_array = img_array[:, :, :3]
+    img_array = img_array / 255.0
     img_array = np.expand_dims(img_array, axis=0)
 
-    # Set input tensor
-    interpreter.set_tensor(input_details[0]['index'], img_array)
-
-    # Run inference
-    interpreter.invoke()
-
-    # Get prediction
-    output = interpreter.get_tensor(output_details[0]['index'])
-    predicted_class = np.argmax(output)
-    confidence = output[0][predicted_class]
+    # Prediction
+    prediction = model.predict(img_array)
+    predicted_class = np.argmax(prediction)
+    confidence = prediction[0][predicted_class]
 
     # Display result
     st.markdown("---")
     col1, col2 = st.columns([1, 2])
-
+    
     with col1:
         if predicted_class == 0:
             st.success("✅ No Tumor Detected")
@@ -126,9 +109,7 @@ if uploaded_file:
         "confidence": f"{confidence * 100:.2f}%"
     })
 
-# ==========================
-# Prediction History
-# ==========================
+# Show history
 with st.expander("🕓 View Prediction History"):
     if st.session_state.history:
         for i, entry in enumerate(reversed(st.session_state.history), 1):
